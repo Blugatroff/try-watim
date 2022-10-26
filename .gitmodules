@@ -1,0 +1,3 @@
+[submodule "watim"]
+	path = watim
+	url = https://github.com/Blugatroff/watim

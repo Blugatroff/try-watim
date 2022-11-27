@@ -1,0 +1,32 @@
+#main-div {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.cm-editor {
+    margin: 0.5em;
+    min-width: 400px;
+    min-height: 400px;
+}
+
+#output-div {
+    border: 1px solid #654FF0;
+    margin: 0.5em;
+    background-color: #282828;
+    font-size: large;
+    max-width: 800px
+}
+
+.output-line {
+    margin: 0px;
+    white-space: pre-wrap;
+}
+
+.output-line-2 {
+    color: #F0B020;
+}
+
+.output-line-1 {
+    color: #5898E9;
+}

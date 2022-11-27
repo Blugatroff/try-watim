@@ -16,6 +16,7 @@
     "@codemirror/commands": "^6.1.2",
     "@codemirror/state": "^6.1.2",
     "@codemirror/view": "^6.4.0",
-    "codemirror": "^6.0.1"
+    "codemirror": "^6.0.1",
+    "wabt": "^1.0.30-nightly.20221109"
   }
 }

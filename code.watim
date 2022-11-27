@@ -1,0 +1,29 @@
+extern "wasi_unstable" "fd_read" fn raw_read(file: i32, iovs: .Iov, iovs_count: i32, written: .i32) -> i32
+extern "wasi_unstable" "fd_write" fn raw_write(file: i32, iovs: .Iov, iovs_count: i32, written: .i32) -> i32
+extern "wasi_unstable" "proc_exit" fn exit(code: i32)
+
+fn main "_start" () {
+    1 "Hello World!\n" write drop
+}
+
+struct I32 { inner: i32 }
+
+struct Iov {
+    ptr: .i32
+    len: i32
+}
+
+fn write(file: i32, ptr: .i32, len: i32) -> i32 {
+    local iov: Iov
+    local written-ptr: I32
+    local written: i32
+    $ptr #iov.ptr
+    $len #iov.len
+    $file &iov 1 &written-ptr.inner raw_write drop
+    $written-ptr.inner #written
+    $written $len = if {
+        $len
+    } else {
+        $file $ptr $written + $len $written - write $written +
+    }
+}

@@ -36,14 +36,20 @@ export const mapFileSystemNode = <A, B>(f: (a: A) => B) => (entry: FileSystemNod
 
 export type FileSystemNode<T> = FileEntry<T> | Directory<T>
 
-type FileLoader = (path: string) => Promise<string>
+export type FileLoader = (path: string) => Promise<string>
 type File = {
     read: (ptr: number, len: number) => [number, number],
     write: (data: DataView) => [number, number],
     prestatName?: string
 }
 
-export const compile = async (wasmPath: string, argStrings: string[], fs: FileSystemNode<FileLoader>, writeOutput: (v: { fd: number, data: string }) => void) => {
+export const prepareWasi = (
+    wasmPath: string,
+    argStrings: string[],
+    fs: FileSystemNode<FileLoader>,
+    writeOutput: (v: { fd: number, data: string }) => void,
+    onExit?: (code: number) => void
+) => async (getMemory: () => DataView): Promise<WebAssembly.Imports> => {
     const args: DataView[] = [
         wasmPath,
         ...argStrings,
@@ -208,12 +214,15 @@ export const compile = async (wasmPath: string, argStrings: string[], fs: FileSy
         const file = openFds[fd]
         if (file === undefined) return 8
         if (file.prestatName === undefined) return 8
-        memory.setUint32(prestat, new TextEncoder().encode(file.prestatName).byteLength, true)
+        const pathBytes = new TextEncoder().encode(file.prestatName)
+        const kind = 0
+        memory.setUint32(prestat, kind, true)
+        memory.setUint32(prestat + 4, pathBytes.byteLength, true)
         return 0
     }
 
     const proc_exit = (code: number) => {
-        console.log(`EXIT ${code}`)
+        onExit?.(code)
         throw new Error(`EXIT ${code}`)
     }
 
@@ -235,7 +244,7 @@ export const compile = async (wasmPath: string, argStrings: string[], fs: FileSy
         return code
     }
 
-    const imports = {
+    return {
         wasi_unstable: {
             fd_read,
             fd_write,
@@ -247,14 +256,35 @@ export const compile = async (wasmPath: string, argStrings: string[], fs: FileSy
             path_open,
         },
     }
-
-    const ws = await WebAssembly.instantiateStreaming(fetch(wasmPath), imports)
-    const exports = ws.instance.exports
-    const memExport = exports["memory"]
-    if (memExport === undefined) return
-    if (!(memExport instanceof WebAssembly.Memory)) return
-    const getMemory = () => new DataView(memExport.buffer)
-    const startExport = exports["_start"]
-    if (!(startExport instanceof Function)) return
-    startExport()
 }
+
+export const runWasi = async (
+    loadWasm: (imports: WebAssembly.Imports) => Promise<WebAssembly.WebAssemblyInstantiatedSource>,
+    binaryPath: string,
+    args: string[],
+    fs: FileSystemNode<FileLoader>,
+    writeOutput: (v: { fd: number, data: string }) => void,
+): Promise<number | undefined> => {
+    return new Promise(async resolve => {
+        const wasi = prepareWasi(binaryPath, args, fs, writeOutput, resolve)
+        const imports: WebAssembly.Imports = await wasi(() => getMemory())
+        const { instance } = await loadWasm(imports)
+        const exports = instance.exports
+
+        const memExport = exports["memory"]
+        if (!(memExport instanceof WebAssembly.Memory)) {
+            resolve(undefined)
+            return
+        }
+        const getMemory = () => new DataView(memExport.buffer)
+
+        const startExport = exports["_start"]
+        if (!(startExport instanceof Function)) {
+            resolve(undefined)
+            return
+        }
+        startExport()
+        resolve(0)
+    })
+}
+
